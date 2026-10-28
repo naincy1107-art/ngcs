@@ -79,6 +79,19 @@ class SerialConnection:
 
     def connect(self, port: str, baudrate: int = DEFAULT_BAUDRATE):
 
+        # GCS-FIX-1: a reconnect loop may still be running (connected is False but the
+        # reader thread is alive). Stop it completely before opening the port again.
+        if (not self.connected and self.read_thread is not None
+                and self.read_thread.is_alive()
+                and self.read_thread is not threading.current_thread()):
+            self.stop_event.set()
+            try:
+                if self.serial is not None and self.serial.is_open:
+                    self.serial.close()
+            except Exception:
+                pass
+            self.read_thread.join(timeout=RECONNECT_INTERVAL + SERIAL_TIMEOUT + 2)
+
         if self.connected:
             if self.port == port and self.baudrate == baudrate:
                 return True
@@ -201,6 +214,16 @@ class SerialConnection:
             return True, "TIMEOUT"
 
     # --------------------------------------------------------
+
+    def _mark_store_disconnected(self):
+        # GCS-FIX-1: tell the dashboard that this radio link is down.
+        try:
+            if self.name.lower() == "rocket":
+                telemetry_store.set_rocket_connection(False)
+            else:
+                telemetry_store.set_cansat_connection(False)
+        except Exception:
+            pass
 
     def is_connected(self):
 
@@ -330,6 +353,7 @@ class SerialConnection:
                 )
 
                 self.connected = False
+                self._mark_store_disconnected()   # GCS-FIX-1
 
                 if AUTO_RECONNECT and not self.stop_event.is_set():
 
@@ -367,6 +391,13 @@ class SerialConnection:
         while AUTO_RECONNECT and not self.stop_event.is_set():
 
             try:
+
+                # GCS-FIX-1: release the dead port first (Windows will not reopen it otherwise)
+                try:
+                    if self.serial is not None:
+                        self.serial.close()
+                except Exception:
+                    pass
 
                 self.serial = serial.Serial(
                     self.port,

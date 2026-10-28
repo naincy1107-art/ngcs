@@ -125,7 +125,10 @@ class PacketParser:
 
     def _strip_framing(self, packet: str) -> str:
         """Optional '$<body>*HH' framing; a present-but-wrong checksum discards the packet."""
-        if packet.startswith("$"):
+        # GCS-FIX-2: only a packet that starts with '$' is strictly checksum-checked.
+        # An unframed packet may legitimately contain '*' in its optional data.
+        framed = packet.startswith("$")
+        if framed:
             packet = packet[1:]
 
         star = packet.rfind("*")
@@ -134,16 +137,20 @@ class PacketParser:
 
         body, cs = packet[:star], packet[star + 1:].strip()
         if len(cs) != 2 or any(c not in "0123456789abcdefABCDEF" for c in cs):
-            raise ValueError("Malformed checksum")
+            if framed:
+                raise ValueError("Malformed checksum")
+            return packet                      # '*' is just text in the optional data
 
         expected = 0
         for ch in body:
             expected ^= ord(ch)
 
         if expected != int(cs, 16):
-            raise ValueError(
-                f"Checksum mismatch (expected {expected:02X}, got {cs.upper()})"
-            )
+            if framed:
+                raise ValueError(
+                    f"Checksum mismatch (expected {expected:02X}, got {cs.upper()})"
+                )
+            return packet                      # unframed: '*AB' is just text
 
         return body
 
@@ -208,9 +215,12 @@ class PacketParser:
 
         m = _RPY.search(telemetry.optional_data)
         if m:
-            telemetry.orientation = Orientation(
-                roll=float(m.group(1)), pitch=float(m.group(2)), yaw=float(m.group(3))
-            )
+            try:                               # GCS-FIX-2: a garbled number must not drop the packet
+                telemetry.orientation = Orientation(
+                    roll=float(m.group(1)), pitch=float(m.group(2)), yaw=float(m.group(3))
+                )
+            except ValueError:
+                pass
 
         # -----------------------------------------------------
         # Basic Validation

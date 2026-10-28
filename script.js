@@ -1600,7 +1600,32 @@ async function startTelemetry() {
   }
 }
 
-function stopTelemetry() {
+// GCS-FIX-6: STOP now also sends the stop command to the radio(s), like START does.
+async function stopTelemetry() {
+  const STOP_COMMAND = "STOP_TELEMETRY";
+  const targets = [
+    ["rocket", "/api/command/rocket", "ROCKET", "RKT"],
+    ["cansat", "/api/command/cansat", "CANSAT", "CS"],
+  ];
+
+  for (const [role, path, label, tag] of targets) {
+    try {
+      const response = await fetch(getApiUrl(path), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: STOP_COMMAND })
+      });
+      const result = await response.json();
+      if (result.success) {
+        appendRawSerialLog(label + " TX: " + STOP_COMMAND + " (SENT)", tag);
+      } else if (role === "rocket" || serialState.cs.port) {
+        appendRawSerialLog(label + " TX FAILED: " + (result.error || "Device not connected"), tag);
+      }
+    } catch (err) {
+      if (role === "rocket") appendRawSerialLog(label + " TX ERROR: " + err.message, tag);
+    }
+  }
+
   serialState.active = false;
   setCommsStatus();
 }
@@ -1982,6 +2007,10 @@ function applySnapshotTelemetry(data) {
     serialState.active = false;
     applyIdleState();
   }
+
+  // GCS-FIX-5: while the simulator runs and no real packet is arriving, the simulator owns the
+  // numbers; do not overwrite them with the backend's empty snapshot.
+  if (simInterval && !(rktConnectedWithPackets || csConnectedWithPackets)) return;
 
   if (data.rocket) {
     state.rkt.alt = data.rocket.altitude || 0;

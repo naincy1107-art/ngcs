@@ -1,3 +1,4 @@
+import test_sandbox  # GCS-FIX-8: keep tests out of the real logs/ folder
 from packet_parser import packet_parser
 from telemetry_store import telemetry_store
 from csv_logger import csv_logger, CSV_PATH
@@ -33,4 +34,4 @@ csv_logger.log_packet("ROCKET", telemetry)
 
 csv_logger.stop_logging()
 
-print(f"Telemetry written to {CSV_PATH}")
+print(f"Telemetry written to {csv_logger.path} (temporary test file, deleted afterwards)")

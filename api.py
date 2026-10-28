@@ -381,6 +381,19 @@ def ping():
 # Rocket Command
 # ==========================================================
 
+# GCS-FIX-4: validate an uplink command before it is sent to the radio.
+def _clean_command(command):
+    """Returns (command, error). error is None when the command is acceptable."""
+    if not isinstance(command, str):
+        return None, "command must be text."
+    if "\r" in command or "\n" in command:
+        return None, "command must be a single line (no line breaks)."
+    command = command.strip()
+    if not command:
+        return None, "command is empty."
+    return command, None
+
+
 @api.route("/command/rocket", methods=["POST"])
 def command_rocket():
 
@@ -393,8 +406,12 @@ def command_rocket():
                 }
             )
 
-        data = request.get_json(silent=True) or {}
-        command = data.get("command", "START_TELEMETRY")
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            data = {}
+        command, command_error = _clean_command(data.get("command", "START_TELEMETRY"))
+        if command_error:
+            return jsonify({"success": False, "error": command_error}), 400
 
         framed = bool(data.get("framed", False))
         wait_ack = bool(data.get("wait_ack", False))
@@ -438,8 +455,12 @@ def command_cansat():
                 }
             )
 
-        data = request.get_json(silent=True) or {}
-        command = data.get("command", "START_TELEMETRY")
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            data = {}
+        command, command_error = _clean_command(data.get("command", "START_TELEMETRY"))
+        if command_error:
+            return jsonify({"success": False, "error": command_error}), 400
 
         framed = bool(data.get("framed", False))
         wait_ack = bool(data.get("wait_ack", False))
@@ -503,7 +524,10 @@ def predict_terrain():
             ), 400
 
         future = terrain_classifier.predict_async(image_bytes)
-        prediction = future.result()
+        try:                                           # GCS-FIX-4: unreadable image = bad request
+            prediction = future.result()
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
 
         telemetry_store.update_terrain(prediction)
 
@@ -552,8 +576,13 @@ def inject_telemetry_for_device(device):
 def _inject(path_device):
     try:
         data = request.get_json(silent=True)
-        if data is None:
+        if isinstance(data, list):                     # GCS-FIX-4: bare list = list of packets
+            data = {"packets": data}
+        elif data is None:
             data = {"packet": request.get_data(as_text=True)}
+        elif not isinstance(data, dict):
+            return jsonify({"success": False,
+                            "error": "JSON body must be an object or a list of packets."}), 400
 
         device = str(
             path_device or data.get("device") or request.args.get("device", "rocket")

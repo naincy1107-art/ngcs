@@ -7,7 +7,12 @@ All configurable values should be placed here.
 Other modules must import values from this file instead of hardcoding them.
 """
 
+import os
 from pathlib import Path
+
+# GCS-FIX-9: deployment settings come from the environment (unset = previous behaviour).
+_origins = [o.strip() for o in os.environ.get("GCS_ALLOWED_ORIGINS", "*").split(",") if o.strip()]
+CORS_ORIGINS = "*" if (not _origins or "*" in _origins) else _origins
 
 # =============================================================================
 # PROJECT INFORMATION
@@ -22,18 +27,18 @@ ALLOWED_TEAM_IDS = {TEAM_ID}
 
 VERSION = "1.0.0"
 
-DEBUG = True
+DEBUG = False  # GCS-FIX-7
 
 
 # =============================================================================
 # SERVER CONFIGURATION
 # =============================================================================
 
-HOST = "0.0.0.0"
+HOST = "127.0.0.1"  # GCS-FIX-7: this PC only (use 0.0.0.0 to allow other devices)
 
 PORT = 5000
 
-SECRET_KEY = "julyfeb11"
+SECRET_KEY = os.environ.get("GCS_SECRET_KEY", "julyfeb11")
 
 
 # =============================================================================
@@ -42,7 +47,7 @@ SECRET_KEY = "julyfeb11"
 
 SOCKET_ASYNC_MODE = "threading"
 
-SOCKET_CORS = "*"
+SOCKET_CORS = CORS_ORIGINS
 
 
 # =============================================================================

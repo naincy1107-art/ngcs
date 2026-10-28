@@ -1,0 +1,19 @@
+# Render blueprint for the GCS backend (GCS-FIX-9)
+# NOTE: this backend has no radio on Render (no COM port). It serves the dashboard, replay, the
+# terrain model and /api/telemetry/inject. The real radio link runs on the laptop.
+services:
+  - type: web
+    name: gcs-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 1 --threads 100 --timeout 120 --bind 0.0.0.0:$PORT wsgi:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: GCS_SECRET_KEY
+        generateValue: true
+      # "*" = any website may call this backend. After the first deploy, change it to your
+      # Vercel URL and this service's own URL, comma separated, e.g.
+      #   https://your-app.vercel.app,https://gcs-backend.onrender.com
+      - key: GCS_ALLOWED_ORIGINS
+        value: "*"

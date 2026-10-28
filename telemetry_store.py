@@ -192,27 +192,40 @@ class TelemetryStore:
 
             self.replay_active = False
             self.start_time = time.time()
+            self._vel_ref = {}              # GCS-FIX-3: (timestamp, altitude) per device
 
     # ==============================================================
     # Derived values
     # ==============================================================
 
-    @staticmethod
-    def _derive_vertical_velocity(prev: Telemetry, new: Telemetry, now: float):
+    def _derive_vertical_velocity(self, device, prev, new):
         """
-        Legacy 16-field packets carry no vertical velocity. Derive it from
-        successive altitudes (smoothed). 26-field packets (optional_data
-        'VVEL:...') already carry the firmware's own value and are untouched.
+        # GCS-FIX-3
+        Legacy 16-field packets carry no vertical velocity. Derive it from the altitude
+        change between packets, using the packets' OWN time stamps (whole seconds), so the
+        result does not depend on when the packets happened to reach the PC.
+        Packets with 'VVEL:...' in the optional data already carry the firmware's value.
         """
         if new.optional_data.startswith("VVEL:"):
             return
-        if prev.packet_count <= 0 or prev.last_update <= 0:
+
+        ts, alt = new.timestamp, new.altitude
+        ref = self._vel_ref.get(device)
+
+        # first packet, flight computer restarted (time went backwards), or a long gap
+        if ref is None or ts < ref[0] or ts - ref[0] > 5:
+            self._vel_ref[device] = (ts, alt)
+            new.vertical_velocity = 0.0
             return
-        dt = now - prev.last_update
-        if not (0.05 <= dt <= 5.0):
+
+        dt = ts - ref[0]
+        if dt < 1:                      # same second: keep the last value
+            new.vertical_velocity = prev.vertical_velocity
             return
-        raw = (new.altitude - prev.altitude) / dt
+
+        raw = (alt - ref[1]) / dt
         new.vertical_velocity = round(0.5 * raw + 0.5 * prev.vertical_velocity, 2)
+        self._vel_ref[device] = (ts, alt)
 
     # ==============================================================
     # Rocket
@@ -223,7 +236,7 @@ class TelemetryStore:
         with self.lock:
 
             now = time.time()
-            self._derive_vertical_velocity(self.rocket, telemetry, now)
+            self._derive_vertical_velocity("rocket", self.rocket, telemetry)
             telemetry.last_update = now
             telemetry.receive_time_utc = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
             telemetry.connected = True
@@ -251,7 +264,7 @@ class TelemetryStore:
         with self.lock:
 
             now = time.time()
-            self._derive_vertical_velocity(self.cansat, telemetry, now)
+            self._derive_vertical_velocity("cansat", self.cansat, telemetry)
             telemetry.last_update = now
             telemetry.receive_time_utc = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
             telemetry.connected = True

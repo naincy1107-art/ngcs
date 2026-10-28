@@ -14,15 +14,19 @@ Responsibilities
 - Launch the backend server.
 """
 
+import os
+
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 
 from api import api
+from camera_api import camera_api
 from websocket_manager import socketio, websocket_manager
 from telemetry_store import telemetry_store
 
 from config import (
     HOST,
+    CORS_ORIGINS,
     PORT,
     DEBUG,
     SECRET_KEY,
@@ -43,7 +47,7 @@ app.config["SECRET_KEY"] = SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = TERRAIN_MAX_UPLOAD_BYTES
 
 # Enable CORS
-CORS(app)
+CORS(app, origins=CORS_ORIGINS)
 
 # ==========================================================
 # Register REST API
@@ -52,6 +56,11 @@ CORS(app)
 app.register_blueprint(
     api,
     url_prefix="/api"
+)
+
+app.register_blueprint(
+    camera_api,
+    url_prefix="/api/camera"
 )
 
 # ==========================================================
@@ -76,9 +85,12 @@ def home():
     }
 
 @app.route("/dashboard")
+@app.route("/index.html")
 @app.route("/newww.html")
 def serve_dashboard():
-    return send_from_directory(".", "newww.html")
+    # Dashboard page was renamed newww.html -> index.html; serve whichever exists.
+    page = "index.html" if os.path.exists("index.html") else "newww.html"
+    return send_from_directory(".", page)
 
 @app.route("/script.js")
 def serve_script():

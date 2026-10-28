@@ -6,3 +6,5 @@ pyserial
 numpy
 pillow
 requests
+ai-edge-litert
+gunicorn; sys_platform != "win32"

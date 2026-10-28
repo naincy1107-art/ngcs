@@ -8,3 +8,9 @@ __pycache__/
 *.pyc
 logs/
 .env
+*.bak
+fix_step*.py
+fix_index_rename.py
+apply_*.py
+hide_terrain_panel.py
+cansat_ml_demo_send.py

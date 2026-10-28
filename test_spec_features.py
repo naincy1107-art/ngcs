@@ -2,6 +2,7 @@
 import io, os, sys, time, unittest, json, threading
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
+import test_sandbox  # GCS-FIX-8: keep tests out of the real logs/ folder
 from app import app
 from packet_parser import packet_parser
 from telemetry_store import telemetry_store
