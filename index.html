@@ -1010,6 +1010,10 @@ canvas {
 .orientation-scene { width: 100%; height: 230px; perspective: none; }
 canvas.orientation-3d { width: 100% !important; height: 100% !important; display: block; cursor: pointer; }
 </style>
+<style id="terrain-hide-style">
+  #terrain-panel { display: none !important; }
+  #camera-panel .cam-live { margin-top: 0; padding-top: 0; border-top: none; }
+</style>
 </head>
 <body>
 
@@ -1164,6 +1168,18 @@ canvas.orientation-3d { width: 100% !important; height: 100% !important; display
       </div>
     </div>
 
+    <!-- CANSAT-ML-PANEL-START -->
+    <div class="panel" id="cansat-ml-panel">
+      <div class="panel-title"><span class="led" id="csml-led"></span>CanSat ML Result</div>
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <span id="csml-class" style="font-size:30px; font-weight:700; letter-spacing:1px;">--</span>
+        <span id="csml-conf" style="font-size:30px; font-weight:700; color:var(--cyan);">-- %</span>
+      </div>
+      <div id="csml-status" style="margin-top:6px; font-size:12px;">Waiting for CanSat packets</div>
+      <div id="csml-raw" style="margin-top:2px; font-size:11px; opacity:0.65; word-break:break-all;"></div>
+    </div>
+    <!-- CANSAT-ML-PANEL-END -->
+
     <!-- TERRAIN CLASSIFICATION (ML) -->
     <div class="panel" id="terrain-panel">
       <div class="terrain-head">
@@ -1185,6 +1201,33 @@ canvas.orientation-3d { width: 100% !important; height: 100% !important; display
         <button class="map-btn" onclick="document.getElementById('terrainFileInput').click()">Choose Frame</button>
         <button class="map-btn idle-disabled" id="terrainUploadBtn" style="min-width:110px;" onclick="uploadTerrainFrame()">Upload Frame</button>
         <span class="terrain-filename" id="terrainFileName">No file selected</span>
+      </div>
+
+
+
+    </div>
+
+    <!-- LIVE CAMERA PANEL (moved out of Terrain panel) -->
+    <div class="panel" id="camera-panel">
+      <div class="panel-title">Live Camera</div>
+      <!-- LIVE CAMERA (assets/camera_live.js) -->
+      <div class="cam-live" id="cam-live">
+        <style>
+          .cam-live { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(120,140,170,0.35); }
+          .cam-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+          .cam-select { max-width: 190px; padding: 5px 6px; border-radius: 6px; border: 1px solid rgba(120,140,170,0.6);
+                        background: transparent; color: inherit; font: inherit; font-size: 12px; }
+          .cam-canvas { width: 100%; max-height: 320px; margin-top: 10px; border-radius: 8px; background: #000; object-fit: contain; }
+          .cam-rec-on { background: #d32f2f !important; color: #fff !important; border-color: #d32f2f !important; }
+        </style>
+        <div class="cam-row">
+          <select id="cam-select" class="cam-select" title="Camera"><option value="">Default camera</option></select>
+          <button class="map-btn" id="cam-start-btn" style="min-width:110px;">Start Camera</button>
+          <button class="map-btn idle-disabled" id="cam-rec-btn" style="min-width:110px;">&#9679; Record</button>
+          <span class="terrain-filename" id="cam-status">Camera off</span>
+        </div>
+        <canvas id="cam-canvas" class="cam-canvas" style="display:none;"></canvas>
+        <video id="cam-video" muted playsinline style="display:none;"></video>
       </div>
     </div>
 
@@ -1440,5 +1483,7 @@ canvas.orientation-3d { width: 100% !important; height: 100% !important; display
 <script src="assets/vendor/socket.io.min.js"></script>
 <script src="script.js"></script>
 <script type="module" src="assets/orientation3d.js"></script>
+<script src="assets/camera_live.js"></script>
+<!-- CANSAT-ML-SCRIPT-START --><script src="assets/cansat_ml_panel.js"></script><!-- CANSAT-ML-SCRIPT-END -->
 </body>
 </html>
