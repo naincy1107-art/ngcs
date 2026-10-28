@@ -14,3 +14,10 @@ fix_index_rename.py
 apply_*.py
 hide_terrain_panel.py
 cansat_ml_demo_send.py
+logs/
+recordings/
+__pycache__/
+*.pyc
+.env
+get_three*.py
+sniff.py

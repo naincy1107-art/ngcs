@@ -9,6 +9,7 @@ Wraps the quantized terrain classifier (terrain_model_int8.tflite) and exposes
 
 import io
 import logging
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional
@@ -71,6 +72,10 @@ logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s - %(message)s"
 )
+
+
+# GCS-FIX-10: simulated terrain results are OFF unless explicitly enabled for demos.
+ALLOW_SIMULATED_TERRAIN = os.environ.get("GCS_ALLOW_SIMULATED_TERRAIN", "0") == "1"
 
 
 class TerrainClassifier:
@@ -238,13 +243,30 @@ class TerrainClassifier:
             "probabilities": probs,
         }
 
+    def fallback_or_raise(self, image_bytes: bytes) -> Dict:
+        # GCS-FIX-10: never hand out made-up predictions as if they were real.
+        if not ALLOW_SIMULATED_TERRAIN:
+            raise RuntimeError(
+                "Terrain model not loaded (" + str(self.load_error) + "). "
+                "Refusing to return simulated predictions."
+            )
+        result = self.predict_fallback(image_bytes)
+        result["simulated"] = True
+        return result
+
     def predict_async(self, image_bytes: bytes):
         if self.is_ready():
             return self._executor.submit(self.predict, image_bytes)
-        return self._executor.submit(self.predict_fallback, image_bytes)
+        return self._executor.submit(self.fallback_or_raise, image_bytes)
 
 
 terrain_classifier = TerrainClassifier()
+if not terrain_classifier.loaded:
+    # GCS-FIX-10: make a missing model impossible to overlook in the server log.
+    logging.error(
+        "TERRAIN MODEL NOT LOADED: %s -- terrain predictions will return errors.",
+        terrain_classifier.load_error,
+    )
 
 
 def predict_terrain(image_bytes: bytes) -> Dict:
@@ -253,7 +275,7 @@ def predict_terrain(image_bytes: bytes) -> Dict:
     """
     if terrain_classifier.is_ready():
         return terrain_classifier.predict(image_bytes)
-    return terrain_classifier.predict_fallback(image_bytes)
+    return terrain_classifier.fallback_or_raise(image_bytes)
 
 
 if __name__ == "__main__":

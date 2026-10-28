@@ -36,6 +36,16 @@ socketio = SocketIO(
     async_mode=SOCKET_ASYNC_MODE,
 )
 
+# GCS-FIX-10: our own connected-dashboard counter (replaces peeking into engineio internals).
+_client_lock = threading.Lock()
+_client_count = 0
+
+
+def _bump(delta):
+    global _client_count
+    with _client_lock:
+        _client_count = max(0, _client_count + delta)
+
 # ==========================================================
 # WebSocket Manager
 # ==========================================================
@@ -110,8 +120,7 @@ class WebSocketManager:
 
                 if socketio.server is not None:
                     # Check if any active dashboard client is connected
-                    eio = getattr(socketio.server, "eio", None)
-                    if eio and hasattr(eio, "sockets") and len(eio.sockets) > 0:
+                    if _client_count > 0:  # GCS-FIX-10
                         snapshot = telemetry_store.snapshot()
                         snapshot["diagnostics"] = serial_manager.get_diagnostics()
                         socketio.emit(
@@ -225,6 +234,7 @@ def handle_connect():
     """
 
     logging.info("Dashboard Connected")
+    _bump(1)
 
     socketio.emit(
         "connection_status",
@@ -243,6 +253,7 @@ def handle_disconnect():
     """
 
     logging.info("Dashboard Disconnected")
+    _bump(-1)
 
 
 # ==========================================================

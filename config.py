@@ -8,11 +8,13 @@ Other modules must import values from this file instead of hardcoding them.
 """
 
 import os
+import secrets
 from pathlib import Path
 
 # GCS-FIX-9: deployment settings come from the environment (unset = previous behaviour).
-_origins = [o.strip() for o in os.environ.get("GCS_ALLOWED_ORIGINS", "*").split(",") if o.strip()]
-CORS_ORIGINS = "*" if (not _origins or "*" in _origins) else _origins
+_origins = [o.strip().rstrip("/") for o in ([os.environ.get("RENDER_EXTERNAL_URL", "")] + os.environ.get("GCS_ALLOWED_ORIGINS", "").split(",")) if o.strip()]  # GCS-FIX-10: default is no longer "*"
+_LOCAL_ORIGINS = ["http://127.0.0.1:5000", "http://localhost:5000"]  # GCS-FIX-10: this PC (port 5000)
+CORS_ORIGINS = "*" if "*" in _origins else _LOCAL_ORIGINS + [o for o in _origins if o not in _LOCAL_ORIGINS]
 
 # =============================================================================
 # PROJECT INFORMATION
@@ -38,7 +40,7 @@ HOST = "127.0.0.1"  # GCS-FIX-7: this PC only (use 0.0.0.0 to allow other device
 
 PORT = 5000
 
-SECRET_KEY = os.environ.get("GCS_SECRET_KEY", "julyfeb11")
+SECRET_KEY = os.environ.get("GCS_SECRET_KEY") or secrets.token_hex(32)  # GCS-FIX-10: no hardcoded fallback; set GCS_SECRET_KEY on Render
 
 
 # =============================================================================

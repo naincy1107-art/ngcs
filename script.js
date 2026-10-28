@@ -1602,6 +1602,7 @@ async function startTelemetry() {
 
 // GCS-FIX-6: STOP now also sends the stop command to the radio(s), like START does.
 async function stopTelemetry() {
+  let rocketOk = false;  // GCS-FIX-10: did the rocket really get the stop command?
   const STOP_COMMAND = "STOP_TELEMETRY";
   const targets = [
     ["rocket", "/api/command/rocket", "ROCKET", "RKT"],
@@ -1618,6 +1619,7 @@ async function stopTelemetry() {
       const result = await response.json();
       if (result.success) {
         appendRawSerialLog(label + " TX: " + STOP_COMMAND + " (SENT)", tag);
+        if (role === "rocket") rocketOk = true;
       } else if (role === "rocket" || serialState.cs.port) {
         appendRawSerialLog(label + " TX FAILED: " + (result.error || "Device not connected"), tag);
       }
@@ -1626,6 +1628,12 @@ async function stopTelemetry() {
     }
   }
 
+  if (!rocketOk) {
+    appendRawSerialLog("ROCKET STOP NOT CONFIRMED - it may still be transmitting.", "RKT");
+    if (!confirm("STOP was NOT delivered to the rocket - it may still be transmitting.\n\nOK = stop the display anyway\nCancel = keep running so you can press STOP again")) {
+      return;
+    }
+  }
   serialState.active = false;
   setCommsStatus();
 }
